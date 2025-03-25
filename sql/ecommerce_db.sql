@@ -114,7 +114,7 @@ UPDATE TABLE_S3.TD_S3
 SET STATUS = 'Pending'
 WHERE SHIPPING_ADDRESS IS NULL;
 
-CREATE OR REPLACE TABLE CORRECTIONS.TD_DUPLICATES LIKE TABLE_S3.TD_S3; -- Извежда всички поръчки, които са дублирани в таблицата, от 5135 оригинални записа, 135 са дублирани, което свежда до 5000 уникални поръчки.
+CREATE OR REPLACE TABLE CORRECTIONS.TD_DUPLICATES LIKE TABLE_S3.TD_S3; -- Извежда всички поръчки, които са дублирани в таблицата, от 5135 оригинални записа, 135 са дублирани, което свежда до 5000 уникални поръчки (преди премахването по другите условия).
 
 -- Вмъква всички редове от TD_S3, които са дублирани по ORDER_ID
 INSERT INTO CORRECTIONS.TD_DUPLICATES
@@ -133,7 +133,17 @@ WHERE ORDER_ID IN (
 -- Полезно за почистване на данни преди анализ или замяна на оригиналната таблица.
 
 CREATE OR REPLACE TABLE TABLE_S3.TD_CLEAN_RECORDS AS
-SELECT *
+SELECT ORDER_ID,
+  CUSTOMER_ID,
+  CAST(ORDER_DATE AS DATE) AS ORDER_DATE, -- кастване на order_date от string към date
+  PRODUCT,
+  QUANTITY,
+  PRICE,
+  DISCOUNT,
+  TOTAL_AMOUNT,
+  PAYMENT_METHOD,
+  SHIPPING_ADDRESS,
+  STATUS
 FROM TABLE_S3.TD_S3
 QUALIFY ROW_NUMBER() OVER ( -- https://docs.snowflake.com/en/sql-reference/functions/row_number.html
   PARTITION BY ORDER_ID, CUSTOMER_ID, ORDER_DATE, PRODUCT, QUANTITY, PRICE, DISCOUNT, TOTAL_AMOUNT, PAYMENT_METHOD, SHIPPING_ADDRESS, STATUS
