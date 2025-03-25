@@ -49,11 +49,19 @@ INSERT INTO CORRECTIONS.TD_FOR_REVIEW
 SELECT * FROM TABLE_S3.TD_S3
 WHERE SHIPPING_ADDRESS IS NULL AND STATUS = 'Delivered';
 
+-- Премахване от таблицата
+DELETE FROM TABLE_S3.TD_S3
+WHERE SHIPPING_ADDRESS IS NULL AND STATUS = 'Delivered';
+
 -- Ако в записа липсва данни за клиента Customer_id , то тогава този запис трябва да бъде прехвърлен към таблица td_suspisios_records
 CREATE OR REPLACE TABLE CORRECTIONS.TD_SUSPICIOUS_RECORDS LIKE TABLE_S3.TD_S3;
 
 INSERT INTO CORRECTIONS.TD_SUSPICIOUS_RECORDS
 SELECT * FROM TABLE_S3.TD_S3
+WHERE CUSTOMER_NAME IS NULL;
+
+-- Премахване от таблицата
+DELETE FROM TABLE_S3.TD_S3
 WHERE CUSTOMER_NAME IS NULL;
 
 -- Ако липсва информация за платежния метод, коригирайте със стойност по подразбиране Unknown
@@ -78,6 +86,11 @@ INSERT INTO CORRECTIONS.TD_INVALID_COUNT_AND_PRICE
 SELECT * FROM TABLE_S3.TD_S3
 WHERE QUANTITY < 0 OR PRICE < 0;
 
+-- Изтриване на тези записи
+
+DELETE FROM TABLE_S3.TD_S3
+WHERE QUANTITY < 0 OR PRICE < 0;
+
 -- Невалидна отстъпка
 UPDATE TABLE_S3.TD_S3
 SET DISCOUNT = 0
@@ -97,9 +110,28 @@ UPDATE TABLE_S3.TD_S3
 SET STATUS = 'Pending'
 WHERE SHIPPING_ADDRESS IS NULL;
 
--- Изтриване на повтарящи се записи
-CREATE OR REPLACE TABLE CORRECTIONS.TD_DUPLICATES LIKE TABLE_S3.TD_S3;
+CREATE OR REPLACE TABLE CORRECTIONS.TD_DUPLICATES LIKE TABLE_S3.TD_S3; -- Извежда всички поръчки, които са дублирани в таблицата, от 5135 оригинални записа, 135 са дублирани, което свежда до 5000 уникални поръчки.
 
+-- Вмъква всички редове от TD_S3, които са дублирани по ORDER_ID
 INSERT INTO CORRECTIONS.TD_DUPLICATES
-SELECT DISTINCT ORDER_ID FROM TABLE_S3.TD_S3;
+SELECT *
+FROM TABLE_S3.TD_S3
+WHERE ORDER_ID IN (
+  SELECT ORDER_ID
+  FROM TABLE_S3.TD_S3
+  GROUP BY ORDER_ID
+  HAVING COUNT(*) > 1
+);
 
+-- Създава нова таблица без дублирани редове, като оставя само по един запис от всяка група с еднакви стойности.
+-- Дубликатите се определят по всички ключови колони, а редовете се номерират чрез ROW_NUMBER().
+-- Остава редът с ROW_NUMBER = 1 от всяка група, останалите се премахват.
+-- Полезно за почистване на данни преди анализ или замяна на оригиналната таблица.
+
+CREATE OR REPLACE TABLE TABLE_S3.TD_CLEAN_RECORDS AS
+SELECT *
+FROM TABLE_S3.TD_S3
+QUALIFY ROW_NUMBER() OVER ( -- https://docs.snowflake.com/en/sql-reference/functions/row_number.html
+  PARTITION BY ORDER_ID, CUSTOMER_ID, ORDER_DATE, PRODUCT, QUANTITY, PRICE, DISCOUNT, TOTAL_AMOUNT, PAYMENT_METHOD, SHIPPING_ADDRESS, STATUS
+  ORDER BY ORDER_ID
+) = 1;
