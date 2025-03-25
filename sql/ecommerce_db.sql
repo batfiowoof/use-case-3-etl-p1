@@ -79,6 +79,10 @@ INSERT INTO CORRECTIONS.TD_INVALID_DATE_FORMAT
 SELECT * FROM TABLE_S3.TD_S3
 WHERE TRY_TO_DATE(ORDER_DATE) is  null; -- https://docs.snowflake.com/en/sql-reference/functions/try_to_date
 
+UPDATE TABLE_S3.TD_S3
+SET ORDER_DATE = '2024-03-01'
+WHERE TRY_TO_DATE(ORDER_DATE) is  null;
+
 -- Отрицателни или нулеви стойности за количество и цена
 CREATE OR REPLACE TABLE CORRECTIONS.TD_INVALID_COUNT_AND_PRICE LIKE TABLE_S3.TD_S3;
 
